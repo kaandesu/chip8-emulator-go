@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"os"
 	"sync"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -29,18 +32,22 @@ type emulator struct {
 	soundTimer      uint8       // functions like the delay timer,  also gives off a beeping sound while it’s not 0
 	delayTimerMutex sync.Mutex
 	soundTimerMutex sync.Mutex
+	screen          [64][32]int // FIXME: fix the thing
 }
 
 type settings struct {
-	title  string
-	width  int32
-	height int32
-	fps    int32
+	title      string
+	width      int32
+	height     int32
+	fps        int32
+	pixelScale int32
 }
 
 var (
-	Emulator *emulator
-	Settings settings
+	Emulator      *emulator
+	Settings      settings
+	screenImage   *rl.Image
+	screenTexture rl.Texture2D
 )
 
 func main() {
@@ -53,26 +60,60 @@ func main() {
 }
 
 func setup() {
-	Emulator = &emulator{}
 	Settings = settings{
-		width:  32,
-		height: 64,
-		fps:    60,
-		title:  "CHIP-8 emulator Go",
+		width:      64,
+		height:     32,
+		fps:        60,
+		pixelScale: 8,
+		title:      "CHIP-8 emulator Go",
 	}
-	// TODO: Load the rom to the 'memory'
-	Emulator.sp = 0
-
+	rl.InitWindow(Settings.width*8, Settings.height*8, Settings.title)
 	rl.SetTargetFPS(Settings.fps)
 	rl.SetTraceLogLevel(rl.LogError)
-	rl.InitWindow(Settings.width, Settings.height, Settings.title)
 	rl.SetExitKey(0)
+
+	Emulator = &emulator{}
+
+	err := Emulator.LoadROM("./demos/IBM Logo.ch8")
+	if err != nil {
+		log.Fatalf("Failed to load ROM: %v", err)
+	}
+	fmt.Printf("Memory[0x200:0x210]: %v\n", Emulator.memory[0x200:0x210])
+
+	screenImage = rl.GenImageColor(int(Settings.width), int(Settings.width), rl.Black)
+	screenTexture = rl.LoadTextureFromImage(screenImage)
+	// TODO: Load the rom to the 'memory'
+	Emulator.sp = 0
 }
 
 func input() {}
 
-func render() {}
+func render() {
+	rl.BeginDrawing()
+	Emulator.execute()
+	rl.UpdateTexture(screenTexture, rl.LoadImageColors(screenImage))
+	rl.DrawTextureEx(screenTexture, rl.NewVector2(0, 0), 0, 3, rl.White)
+	// rl.DrawFPS(10, 10)
+	rl.EndDrawing()
+}
 
 func quit() {
 	rl.CloseWindow()
+	rl.UnloadTexture(screenTexture)
+	rl.UnloadImage(screenImage)
+}
+
+func (e *emulator) LoadROM(filename string) error {
+	// Read the file into a byte slice
+	rom, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	// Load the ROM into memory starting at 0x200
+	for i := 0; i < len(rom) && i+0x200 < len(e.memory); i++ {
+		e.memory[i+0x200] = rom[i]
+	}
+
+	return nil
 }
