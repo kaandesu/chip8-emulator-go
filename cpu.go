@@ -1,5 +1,9 @@
 package main
 
+import (
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
 /*
 NOTE:
 Read the instruction that PC is currently pointing at from memory.
@@ -22,9 +26,9 @@ func (e *emulator) fetch() (b0, b1 uint8) {
 func (e *emulator) decode() (inst, X, Y, N, NN uint8, NNN uint16) {
 	b0, b1 := e.fetch()
 	inst = (b0 & 0xF0) >> 4
-	X = b0 & 0xF0
+	X = b0 & 0x0F
 	Y = (b1 & 0xF0) >> 4
-	N = b1 & 0xF0
+	N = b1 & 0x0F
 	NN = b1
 	NNN = uint16(X)<<8 | uint16(NN)
 	return
@@ -42,7 +46,8 @@ func (e *emulator) execute() {
 		case 0xE:
 			switch N {
 			case 0x0:
-			// TODO: clear screen
+				// TODO: clear screen
+				e.screen = [64][32]int{}
 			case 0xE:
 				// Ommited
 			}
@@ -56,9 +61,19 @@ func (e *emulator) execute() {
 	case 0xA:
 		e.I = NNN
 	case 0xD:
-		// draw sprite at I at screen x, y given by values in registers X and Y.
-		_ = e.registers[X] % 64
-		_ = e.registers[Y] % 32
+		// TODO: draw screen here
+		e.screen[e.registers[X]%64][e.registers[Y]%32] = 1
+		e.draw(screenImage)
 
+	}
+}
+
+func (e *emulator) draw(screenImage *rl.Image) {
+	for y := range e.screen {
+		for _, x := range e.screen[y] {
+			if x > 0 {
+				rl.ImageDrawPixel(screenImage, int32(x), int32(int(Settings.height)-y-1), rl.White)
+			}
+		}
 	}
 }
