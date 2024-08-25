@@ -80,7 +80,7 @@ func setup() {
 		log.Fatalf("Failed to load ROM: %v", err)
 	}
 
-	screenImage = rl.GenImageColor(int(Settings.width), int(Settings.height), rl.DarkGray)
+	screenImage = rl.GenImageColor(int(Settings.width), int(Settings.height), rl.Black)
 	screenTexture = rl.LoadTextureFromImage(screenImage)
 }
 
