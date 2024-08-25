@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -19,7 +18,7 @@ import (
   leave the initial space empty, except for the font.
 */
 
-// NOTE: Display: 64 x 32 pixels
+const memoryOffset = 0x200
 
 type emulator struct {
 	memory          [4096]uint8 // 4kb memory
@@ -32,7 +31,7 @@ type emulator struct {
 	soundTimer      uint8       // functions like the delay timer,  also gives off a beeping sound while it’s not 0
 	delayTimerMutex sync.Mutex
 	soundTimerMutex sync.Mutex
-	screen          [64][32]int // FIXME: fix the thing
+	screen          [64][32]int
 }
 
 type settings struct {
@@ -67,23 +66,22 @@ func setup() {
 		pixelScale: 8,
 		title:      "CHIP-8 emulator Go",
 	}
-	rl.InitWindow(Settings.width*8, Settings.height*8, Settings.title)
+	rl.InitWindow(Settings.width*Settings.pixelScale, Settings.height*Settings.pixelScale, Settings.title)
 	rl.SetTargetFPS(Settings.fps)
 	rl.SetTraceLogLevel(rl.LogError)
 	rl.SetExitKey(0)
 
 	Emulator = &emulator{}
 
+	Emulator.sp = 0
+	Emulator.pc = 0x200
 	err := Emulator.LoadROM("./demos/IBM Logo.ch8")
 	if err != nil {
 		log.Fatalf("Failed to load ROM: %v", err)
 	}
-	fmt.Printf("Memory[0x200:0x210]: %v\n", Emulator.memory[0x200:0x210])
 
-	screenImage = rl.GenImageColor(int(Settings.width), int(Settings.width), rl.Black)
+	screenImage = rl.GenImageColor(int(Settings.width), int(Settings.height), rl.DarkGray)
 	screenTexture = rl.LoadTextureFromImage(screenImage)
-	// TODO: Load the rom to the 'memory'
-	Emulator.sp = 0
 }
 
 func input() {}
@@ -92,8 +90,7 @@ func render() {
 	rl.BeginDrawing()
 	Emulator.execute()
 	rl.UpdateTexture(screenTexture, rl.LoadImageColors(screenImage))
-	rl.DrawTextureEx(screenTexture, rl.NewVector2(0, 0), 0, 3, rl.White)
-	// rl.DrawFPS(10, 10)
+	rl.DrawTextureEx(screenTexture, rl.NewVector2(0, 0), 0, float32(Settings.pixelScale), rl.White)
 	rl.EndDrawing()
 }
 
@@ -104,15 +101,13 @@ func quit() {
 }
 
 func (e *emulator) LoadROM(filename string) error {
-	// Read the file into a byte slice
 	rom, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
 
-	// Load the ROM into memory starting at 0x200
-	for i := 0; i < len(rom) && i+0x200 < len(e.memory); i++ {
-		e.memory[i+0x200] = rom[i]
+	for i := 0; i < len(rom) && i+memoryOffset < len(e.memory); i++ {
+		e.memory[i+memoryOffset] = rom[i]
 	}
 
 	return nil

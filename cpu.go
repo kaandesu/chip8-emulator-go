@@ -4,18 +4,6 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-/*
-NOTE:
-Read the instruction that PC is currently pointing at from memory.
-An instruction is two bytes, so you will need to read two successive
-bytes from memory and combine them into one 16-bit instruction.
-You should then immediately increment the PC by 2, to be ready to
-fetch the next opcode. Some people do this during the “execute”
-stage, since some instructions will increment it by 2 more to skip an
-instruction, but in my opinion that’s very error-prone.
-Code duplication is a bad thing. If you forget to increment it in
-one of the instructions, you’ll have problems. Do it here!
-*/
 func (e *emulator) fetch() (b0, b1 uint8) {
 	b0 = e.memory[e.pc]
 	b1 = e.memory[e.pc+1]
@@ -36,9 +24,6 @@ func (e *emulator) decode() (inst, X, Y, N, NN uint8, NNN uint16) {
 
 func (e *emulator) execute() {
 	inst, X, Y, N, NN, NNN := e.decode()
-	_ = X
-	_ = NN
-	_ = NNN
 
 	switch inst {
 	case 0x0:
@@ -46,7 +31,6 @@ func (e *emulator) execute() {
 		case 0xE:
 			switch N {
 			case 0x0:
-				// TODO: clear screen
 				e.screen = [64][32]int{}
 			case 0xE:
 				// Ommited
@@ -61,19 +45,40 @@ func (e *emulator) execute() {
 	case 0xA:
 		e.I = NNN
 	case 0xD:
-		// TODO: draw screen here
-		e.screen[e.registers[X]%64][e.registers[Y]%32] = 1
-		e.draw(screenImage)
-
+		e.drawSprite(e.registers[X], e.registers[Y], N)
 	}
 }
 
 func (e *emulator) draw(screenImage *rl.Image) {
-	for y := range e.screen {
-		for _, x := range e.screen[y] {
-			if x > 0 {
-				rl.ImageDrawPixel(screenImage, int32(x), int32(int(Settings.height)-y-1), rl.White)
+	for x, row := range e.screen {
+		for y, value := range row {
+			if value > 0 {
+				rl.ImageDrawPixel(screenImage, int32(x), int32(y), rl.White)
 			}
 		}
 	}
+}
+
+func (e *emulator) drawSprite(VX, VY, N uint8) {
+	x := VX % uint8(Settings.width)
+	y := VY % uint8(Settings.height)
+	e.registers[0xF] = 0
+
+	for row := uint8(0); row < N; row++ {
+		spriteByte := e.memory[e.I+uint16(row)]
+		for col := uint8(0); col < 8; col++ {
+			if spriteByte&(0x80>>col) != 0 { // Check if the pixel in the sprite is set
+				pixelX := (x + col) % uint8(Settings.width)
+				pixelY := (y + row) % uint8(Settings.height)
+
+				if e.screen[pixelX][pixelY] == 1 {
+					e.registers[0xF] = 1
+				}
+
+				e.screen[pixelX][pixelY] ^= 1
+			}
+		}
+	}
+
+	e.draw(screenImage)
 }
